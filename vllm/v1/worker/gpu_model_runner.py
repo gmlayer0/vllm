@@ -798,7 +798,7 @@ class GPUModelRunner(
         self._num_valid_draft_tokens_event: torch.cuda.Event | None = None
         self._num_valid_draft_tokens_copy_stream: torch.cuda.Stream | None = None
         if (
-            self.speculative_config is not None
+            self.speculative_config is not None and get_pp_group().is_last_rank
             and self.speculative_config.use_ngram_gpu()
         ):
             self._num_valid_draft_tokens_cpu = torch.empty(
@@ -1109,7 +1109,7 @@ class GPUModelRunner(
             self.input_batch.remove_request(req_id)
 
         is_ngram_gpu = (
-            self.speculative_config is not None
+            self.speculative_config is not None and get_pp_group().is_last_rank
             and self.speculative_config.use_ngram_gpu()
         )
         if is_ngram_gpu:
@@ -1193,7 +1193,7 @@ class GPUModelRunner(
         # prev_num_draft_len keeps the optimistic count for rejection correction.
         original_num_spec_per_req: dict[str, int] = {}
         if (
-            self.speculative_config is not None
+            self.speculative_config is not None and get_pp_group().is_last_rank
             and self.speculative_config.use_ngram_gpu()
         ):
             for req_id, toks in scheduled_spec_tokens.items():
@@ -2303,7 +2303,7 @@ class GPUModelRunner(
                 cm.block_table_tensor = _get_block_table(kv_cache_gid)
                 cm.slot_mapping = slot_mappings[kv_cache_gid]
 
-            if self.speculative_config and spec_decode_common_attn_metadata is None:
+            if self.speculative_config and get_pp_group().is_last_rank and spec_decode_common_attn_metadata is None:
                 if isinstance(self.drafter, EagleProposer):
                     if self.drafter.kv_cache_gid == kv_cache_gid:
                         spec_decode_common_attn_metadata = cm
@@ -3789,7 +3789,7 @@ class GPUModelRunner(
         # the modification has influence on the scheduler_output in engine core process.
         # The replace is much faster than deepcopy.
         if (
-            self.speculative_config is not None
+            self.speculative_config is not None and get_pp_group().is_last_rank
             and self.speculative_config.use_ngram_gpu()
         ):
             num_scheduled_tokens_copy = scheduler_output.num_scheduled_tokens.copy()
@@ -6240,7 +6240,7 @@ class GPUModelRunner(
         self.calculate_reorder_batch_threshold()
 
         # Initialize drafter attention backend
-        if self.speculative_config and (
+        if self.speculative_config and get_pp_group().is_last_rank and (
             self.speculative_config.use_eagle()
             or self.speculative_config.uses_draft_model()
         ):
@@ -6415,7 +6415,7 @@ class GPUModelRunner(
         )
 
         # Initialize drafter's cudagraph dispatcher if using spec decode.
-        if self.speculative_config and (
+        if self.speculative_config and get_pp_group().is_last_rank and (
             self.speculative_config.use_eagle()
             or self.speculative_config.uses_extract_hidden_states()
         ):
